@@ -36,7 +36,7 @@ def main():
     from aidu.ai.actor.service import ActorService
 
     actor = DemoActor()
-    service = ActorService(actor_id="demo-actor")
+    service = ActorService(actor_id="demo-actor", controller=actor, processors={"input": actor})
     app = create_actor_app(service)
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)

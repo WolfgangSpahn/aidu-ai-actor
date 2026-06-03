@@ -8,10 +8,9 @@ from aidu.ai.controller.controller import Controller
 
 
 class ActorService:
-    def __init__(self, actor_id: str, controller: Controller, processors: dict[str, Any]):
-        self.actor_id = actor_id
-        self.controller = controller
-        self.processors = processors
+    def __init__(self, actor):
+        self.actor_id = actor.id
+        self.controller = actor.controller
         self.outbox = deque()
 
     def receive(self, msg: ActorMessage) -> ActorMessage:
