@@ -3,7 +3,10 @@
 from __future__ import annotations
 import logging
 import json
+
+
 from collections import deque
+from multiprocessing import context
 import threading
 from typing import Annotated, Any
 from uuid import uuid4
@@ -12,7 +15,9 @@ from fastapi import FastAPI
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 from rich.console import Console
+from rich.logging import RichHandler
 
+from aidu.ai.llm.agent import Agent, EndAgent
 from aidu.ai.actor.config import config
 from aidu.ai.controller.controller import Controller
 from aidu.ai.core.artifacts import ArtifactType, TextArtifact
@@ -20,7 +25,7 @@ from aidu.ai.core.context import Context
 
 
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)
+logger.setLevel(logging.DEBUG)
 
 console = Console()
 
@@ -33,17 +38,16 @@ class Actor:
     def __init__(
         self,
         name: str,
-        processors: dict[str, Processor],
-        startup: str,
+        agents: list[Agent],
+        startup: type[Agent],
         context: Context | None = None,
-        show_trace: bool = False,
         description: str = "",
     ):
         self.name = name
         self.startup = startup
         self.context = context or Context()
         self.description = description
-        self.controller = Controller(f"Controller of {name}", context=self.context, processors=processors, show_trace=show_trace)
+        self.controller = Controller(f"Controller of {name}", context=self.context, agents=agents)
 
         self.app = FastAPI(
             title=name,
@@ -70,7 +74,11 @@ class Actor:
             return {
                 "name": self.name,
                 "description": self.description,
-                "processors": list(self.controller.processors.keys()),
+                "agents": [
+                    agent.__name__
+                    for agent in self.controller.agents.keys()
+                ],
+                "startup": self.startup.__name__,
             }
 
         @self.app.post("/run")
@@ -137,14 +145,64 @@ class Actor:
 
         return thread
 
+
+
+def get_recommendation_data(agents):
+
+    rows = []
+
+    for agent in agents:
+
+        rows.append(
+            {
+                "source": agent.__class__.__name__,
+                "function": "direct",
+                "mode": "default",
+                "target": agent.target.__name__ if hasattr(agent, "target") and agent.target else None,
+                "continuations": [c.__name__ for c in agent.continuations] if hasattr(agent, "continuations") else [],
+            }
+        )
+       
+        if hasattr(agent, "discovered_fn_routes"):
+            logger.debug(f"Inspecting agent {agent.__class__.__name__} for discovered routes")
+            for fn_name, mode,target, cont in agent.discovered_fn_routes:
+                logger.debug(f"Found route in {agent.__class__.__name__}: function {fn_name} targets {target.__name__} with continuations {[c.__name__ for c in cont]}")
+
+                rows.append(
+                    {
+                        "source": agent.__class__.__name__,
+                        "function": fn_name,
+                        "mode": mode,
+                        "target": target.__name__,
+                        "continuations": [
+                            c.__name__
+                            for c in cont
+                        ],
+                    }
+                )
+
+    return rows
+
 if __name__ == "__main__":
     import argparse
 
-    from aidu.ai.agents.math_tutor import MathTutor
+    from aidu.ai.core.belief import StudentBelief
+    # from aidu.ai.agents.math_tutor import MathTutor
+    from aidu.ai.agents.math_student import MathStudent
     from aidu.ai.agents.chat_bot import ChatBot
     from aidu.ai.agents.symbolic_solver import SymbolicSolver
     from aidu.ai.llm.clients.openai import OpenAIClient
-    from aidu.ai.controller.processor import DummyProcessor, EchoProcessor, Processor, UserInputProcessor, AgentProcessor
+    from aidu.ai.agents.math_tutor import MathUserInput, MathTutor
+    from aidu.ai.agents.symbolic_solver import SymbolicSolver
+
+    # ----------------------------------------------------------------------
+    # setup rich logging
+    # ----------------------------------------------------------------------
+
+    
+    logging.basicConfig(level=logging.INFO,
+                        format="%(message)s - %(funcName)s",
+                        handlers=[RichHandler(console=console)])
 
     parser = argparse.ArgumentParser()
     parser.add_argument("--actor", type=str, default="math_tutor", choices=["math_tutor", "user_input"])
@@ -155,43 +213,69 @@ if __name__ == "__main__":
 
     # Set up the actor with a demo controller and processors
 
-    client = OpenAIClient(model="gpt-4o-mini")
+    client = OpenAIClient(model="gpt-5-mini")
+
+    context = Context()
+
+    # Initialize belief state
+    belief = StudentBelief(      # confused_but_motivated
+                engagement= 0.90,
+                confidence= 0.20,
+                confusion= 0.95,
+                frustration= 0.30,
+                curiosity= 0.80,
+                self_explanation= 0.40,
+                guessing= 0.20,
+                help_seeking= 0.90)
+
+
+    context.state.data["StudentBelief"] = belief
 
     if args.actor == "math_tutor":
+        logger.info("Starting Math Tutor Actor...")
 
-        math_tutor_actor = Actor(
-            name="Demo Math Tutor Actor",
-            processors={
-                "input": UserInputProcessor(target="math_tutor"),
-                "math_tutor": AgentProcessor(MathTutor(client)),
-                "symbolic_solver": AgentProcessor(SymbolicSolver()),
-            },
-            startup="input",
-            show_trace=True,
-            description="A demo math tutor actor for testing purposes.",
+        agents = [
+            # MathTutor(client, prompt_args={"tutor_name": "Alice", 
+            #                     "focus_area": "general math",
+            #                     "history": "Student had been asked to solve the equation x**2 - 4 = 0.",
+            #                     "student_progress": "So far student guessed 3 without any reasoning, you asked to try again.",
+            #                     "level"     : "beginner"}),
+            MathStudent(client, prompt_args={"student_name": "Bob",
+                                "focus_area": "general math",
+                                "history": "Student had been asked to solve the equation x**2 - 4 = 0.",
+                                "student_progress": "So far student guessed 3 without any reasoning.",
+                                "level"     : "beginner",
+                                "student_beliefs": belief.to_student_prompt(),}),
+            SymbolicSolver(),
+            EndAgent(),
+        ]
+
+        # test calls to discover function routes and recommendations
+        # agents[0].fc_route_symbolic_solver(Context(),problem="solve(x**2 - 4, x)") # should route to SymbolicSolver
+        # agents[0].fc_route_symbolic_solver(Context(),problem="hello") # triggers error handling route
+
+        # Initialize state for each agent
+
+        for agent in agents:
+            context.state.data.setdefault(
+                agent.__class__.__name__,
+                getattr(agent, "default_state", {}).copy(),
+            )
+
+        MathStudent.agent = EndAgent
+
+        # console.print("Routes",get_recommendation_data(agents))
+
+        math_student_actor = Actor(
+            name="Demo Math Student Actor",
+            agents=agents,
+            startup=MathStudent,
+            context=context,
+            description="A demo math student actor for testing purposes.",
         )
 
         # Start the actor server
-        math_tutor_actor.serve(
-            host=args.host,
-            port=args.port,
-            reload=args.reload,
-        )
-    elif args.actor == "user_input":
-
-        user_input_actor = Actor(
-            name="Demo User Input Actor",
-            processors={
-                "input": UserInputProcessor(target="exit"),
-                "echo": EchoProcessor(),
-            },
-            startup="input",
-            show_trace=True,
-            description="A demo user input actor that echoes back input.",
-        )
-
-        # Start the actor server
-        user_input_actor.serve(
+        math_student_actor.serve(
             host=args.host,
             port=args.port,
             reload=args.reload,

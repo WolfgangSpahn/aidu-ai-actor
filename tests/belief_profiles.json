@@ -1,0 +1,224 @@
+{
+  "belief_profiles": [
+    {
+      "id": "balanced",
+      "engagement": 0.50,
+      "confidence": 0.50,
+      "confusion": 0.50,
+      "frustration": 0.50,
+      "curiosity": 0.50,
+      "self_explanation": 0.50,
+      "guessing": 0.50,
+      "help_seeking": 0.50
+    },
+    {
+      "id": "engaged_explorer",
+      "engagement": 0.95,
+      "confidence": 0.60,
+      "confusion": 0.30,
+      "frustration": 0.10,
+      "curiosity": 0.95,
+      "self_explanation": 0.80,
+      "guessing": 0.10,
+      "help_seeking": 0.40
+    },
+    {
+      "id": "confused_but_motivated",
+      "engagement": 0.90,
+      "confidence": 0.20,
+      "confusion": 0.95,
+      "frustration": 0.30,
+      "curiosity": 0.80,
+      "self_explanation": 0.40,
+      "guessing": 0.20,
+      "help_seeking": 0.90
+    },
+    {
+      "id": "frustrated_and_confused",
+      "engagement": 0.60,
+      "confidence": 0.20,
+      "confusion": 0.90,
+      "frustration": 0.95,
+      "curiosity": 0.20,
+      "self_explanation": 0.20,
+      "guessing": 0.30,
+      "help_seeking": 0.90
+    },
+    {
+      "id": "overconfident",
+      "engagement": 0.70,
+      "confidence": 0.95,
+      "confusion": 0.10,
+      "frustration": 0.10,
+      "curiosity": 0.20,
+      "self_explanation": 0.20,
+      "guessing": 0.60,
+      "help_seeking": 0.10
+    },
+    {
+      "id": "careful_reasoner",
+      "engagement": 0.85,
+      "confidence": 0.70,
+      "confusion": 0.20,
+      "frustration": 0.10,
+      "curiosity": 0.70,
+      "self_explanation": 0.95,
+      "guessing": 0.05,
+      "help_seeking": 0.20
+    },
+    {
+      "id": "guesser",
+      "engagement": 0.70,
+      "confidence": 0.80,
+      "confusion": 0.30,
+      "frustration": 0.10,
+      "curiosity": 0.20,
+      "self_explanation": 0.10,
+      "guessing": 0.95,
+      "help_seeking": 0.10
+    },
+    {
+      "id": "help_seeker",
+      "engagement": 0.75,
+      "confidence": 0.20,
+      "confusion": 0.60,
+      "frustration": 0.20,
+      "curiosity": 0.50,
+      "self_explanation": 0.30,
+      "guessing": 0.20,
+      "help_seeking": 0.95
+    },
+    {
+      "id": "independent_learner",
+      "engagement": 0.90,
+      "confidence": 0.80,
+      "confusion": 0.20,
+      "frustration": 0.10,
+      "curiosity": 0.80,
+      "self_explanation": 0.90,
+      "guessing": 0.05,
+      "help_seeking": 0.10
+    },
+    {
+      "id": "disengaged",
+      "engagement": 0.10,
+      "confidence": 0.30,
+      "confusion": 0.40,
+      "frustration": 0.20,
+      "curiosity": 0.10,
+      "self_explanation": 0.10,
+      "guessing": 0.20,
+      "help_seeking": 0.10
+    },
+    {
+      "id": "bored_expert",
+      "engagement": 0.30,
+      "confidence": 0.95,
+      "confusion": 0.05,
+      "frustration": 0.10,
+      "curiosity": 0.10,
+      "self_explanation": 0.70,
+      "guessing": 0.05,
+      "help_seeking": 0.05
+    },
+    {
+      "id": "anxious_student",
+      "engagement": 0.70,
+      "confidence": 0.10,
+      "confusion": 0.60,
+      "frustration": 0.70,
+      "curiosity": 0.40,
+      "self_explanation": 0.30,
+      "guessing": 0.40,
+      "help_seeking": 0.80
+    },
+    {
+      "id": "persistent_struggler",
+      "engagement": 0.95,
+      "confidence": 0.20,
+      "confusion": 0.80,
+      "frustration": 0.50,
+      "curiosity": 0.70,
+      "self_explanation": 0.50,
+      "guessing": 0.20,
+      "help_seeking": 0.70
+    },
+    {
+      "id": "reflective_student",
+      "engagement": 0.80,
+      "confidence": 0.60,
+      "confusion": 0.20,
+      "frustration": 0.10,
+      "curiosity": 0.80,
+      "self_explanation": 0.95,
+      "guessing": 0.05,
+      "help_seeking": 0.30
+    },
+    {
+      "id": "curious_novice",
+      "engagement": 0.85,
+      "confidence": 0.20,
+      "confusion": 0.70,
+      "frustration": 0.20,
+      "curiosity": 0.95,
+      "self_explanation": 0.30,
+      "guessing": 0.20,
+      "help_seeking": 0.70
+    },
+    {
+      "id": "silent_student",
+      "engagement": 0.40,
+      "confidence": 0.40,
+      "confusion": 0.40,
+      "frustration": 0.20,
+      "curiosity": 0.20,
+      "self_explanation": 0.05,
+      "guessing": 0.20,
+      "help_seeking": 0.05
+    },
+    {
+      "id": "reckless_solver",
+      "engagement": 0.90,
+      "confidence": 0.90,
+      "confusion": 0.20,
+      "frustration": 0.10,
+      "curiosity": 0.30,
+      "self_explanation": 0.10,
+      "guessing": 0.80,
+      "help_seeking": 0.05
+    },
+    {
+      "id": "stuck_and_withdrawing",
+      "engagement": 0.20,
+      "confidence": 0.10,
+      "confusion": 0.80,
+      "frustration": 0.90,
+      "curiosity": 0.10,
+      "self_explanation": 0.10,
+      "guessing": 0.20,
+      "help_seeking": 0.10
+    },
+    {
+      "id": "productive_confusion",
+      "engagement": 0.95,
+      "confidence": 0.40,
+      "confusion": 0.80,
+      "frustration": 0.10,
+      "curiosity": 0.95,
+      "self_explanation": 0.70,
+      "guessing": 0.10,
+      "help_seeking": 0.50
+    },
+    {
+      "id": "mastery",
+      "engagement": 0.90,
+      "confidence": 0.95,
+      "confusion": 0.05,
+      "frustration": 0.05,
+      "curiosity": 0.70,
+      "self_explanation": 0.95,
+      "guessing": 0.01,
+      "help_seeking": 0.05
+    }
+  ]
+}

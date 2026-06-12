@@ -1,0 +1,354 @@
+{
+  "scenarios": [
+
+    {
+      "belief_profile": "engaged_explorer",
+      "history": "Student is solving x**2 - 4 = 0.",
+      "student_progress": "Student suggested trying both factoring and square roots and has been explaining their reasoning.",
+      "student_turn": "Could there be another way to solve it?"
+    },
+
+    {
+      "belief_profile": "engaged_explorer",
+      "history": "Student is investigating patterns in quadratic equations.",
+      "student_progress": "Student noticed that x**2 - 9 and x**2 - 4 look similar.",
+      "student_turn": "Does this work for every difference of squares?"
+    },
+
+    {
+      "belief_profile": "confused_but_motivated",
+      "history": "Student is solving x**2 - 4 = 0.",
+      "student_progress": "Student correctly substituted values but cannot see how to isolate x.",
+      "student_turn": "I still don't see what to do next."
+    },
+
+    {
+      "belief_profile": "confused_but_motivated",
+      "history": "Student simplified the equation to x**2 = 4.",
+      "student_progress": "Student understands the algebra but is unsure how to continue.",
+      "student_turn": "How do I get rid of the square?"
+    },
+
+    {
+      "belief_profile": "frustrated_and_confused",
+      "history": "Student has attempted the same problem four times.",
+      "student_progress": "Several arithmetic mistakes have led to dead ends.",
+      "student_turn": "Nothing I do seems to work."
+    },
+
+    {
+      "belief_profile": "frustrated_and_confused",
+      "history": "Student is solving x**2 = 9.",
+      "student_progress": "Tutor repeatedly asked for another solution after x=3 was found.",
+      "student_turn": "I don't know what you want from me."
+    },
+
+    {
+      "belief_profile": "overconfident",
+      "history": "Student is solving x**2 = 9.",
+      "student_progress": "Student immediately answered x=3 and has not checked the result.",
+      "student_turn": "That's obviously correct."
+    },
+
+    {
+      "belief_profile": "overconfident",
+      "history": "Student is solving 2x + 4 = 10.",
+      "student_progress": "Student skipped intermediate steps and declared a solution.",
+      "student_turn": "Trust me, the answer is 3."
+    },
+
+    {
+      "belief_profile": "careful_reasoner",
+      "history": "Student is solving x**2 - 4 = 0.",
+      "student_progress": "Student has justified every algebraic transformation.",
+      "student_turn": "Since x**2 = 4, I think I should consider both square roots."
+    },
+
+    {
+      "belief_profile": "careful_reasoner",
+      "history": "Student is checking solutions.",
+      "student_progress": "Student substituted both candidate values back into the equation.",
+      "student_turn": "Both seem to make the left side equal zero."
+    },
+
+    {
+      "belief_profile": "guesser",
+      "history": "Student is solving x**2 - 4 = 0.",
+      "student_progress": "Student has produced several answers without calculations.",
+      "student_turn": "Maybe it is 5."
+    },
+
+    {
+      "belief_profile": "guesser",
+      "history": "Student is solving 3x + 6 = 12.",
+      "student_progress": "Student has not written down any intermediate reasoning.",
+      "student_turn": "I think it is 7."
+    },
+
+    {
+      "belief_profile": "help_seeker",
+      "history": "Student is solving x**2 = 4.",
+      "student_progress": "Student understands earlier steps but asks for confirmation frequently.",
+      "student_turn": "Am I doing this right?"
+    },
+
+    {
+      "belief_profile": "help_seeker",
+      "history": "Student is solving a linear equation.",
+      "student_progress": "Student pauses after every transformation.",
+      "student_turn": "What should I do next?"
+    },
+
+    {
+      "belief_profile": "independent_learner",
+      "history": "Student is solving x**2 - 25 = 0.",
+      "student_progress": "Student independently recognized a difference of squares.",
+      "student_turn": "I think I can factor this."
+    },
+
+    {
+      "belief_profile": "independent_learner",
+      "history": "Student is checking solutions.",
+      "student_progress": "Student proposed a verification strategy before being asked.",
+      "student_turn": "Let me substitute both values back in."
+    },
+
+    {
+      "belief_profile": "disengaged",
+      "history": "Student is solving x**2 - 4 = 0.",
+      "student_progress": "Student responds with very short answers and long pauses.",
+      "student_turn": "No idea."
+    },
+
+    {
+      "belief_profile": "disengaged",
+      "history": "Student is solving a linear equation.",
+      "student_progress": "Student has stopped attempting calculations.",
+      "student_turn": "Whatever."
+    },
+
+    {
+      "belief_profile": "bored_expert",
+      "history": "Student is solving x**2 - 4 = 0.",
+      "student_progress": "Student solved the problem immediately.",
+      "student_turn": "Can we do something harder?"
+    },
+
+    {
+      "belief_profile": "bored_expert",
+      "history": "Student factored the equation in one step.",
+      "student_progress": "Student appears unchallenged.",
+      "student_turn": "This is too easy."
+    },
+
+    {
+      "belief_profile": "anxious_student",
+      "history": "Student is solving x**2 = 4.",
+      "student_progress": "Student hesitates despite making correct steps.",
+      "student_turn": "I think it might be 2, but I'm not sure."
+    },
+
+    {
+      "belief_profile": "anxious_student",
+      "history": "Student is checking solutions.",
+      "student_progress": "Student repeatedly seeks reassurance.",
+      "student_turn": "Is that wrong?"
+    },
+
+    {
+      "belief_profile": "persistent_struggler",
+      "history": "Student has spent ten minutes on the problem.",
+      "student_progress": "Student continues trying despite multiple mistakes.",
+      "student_turn": "Let me try another approach."
+    },
+
+    {
+      "belief_profile": "persistent_struggler",
+      "history": "Student is solving x**2 = 16.",
+      "student_progress": "Student corrected two earlier errors independently.",
+      "student_turn": "I think I'm getting closer."
+    },
+
+    {
+      "belief_profile": "reflective_student",
+      "history": "Student found the solution.",
+      "student_progress": "Student is comparing different solution methods.",
+      "student_turn": "Why does factoring lead to the same answer?"
+    },
+
+    {
+      "belief_profile": "reflective_student",
+      "history": "Student solved several similar problems.",
+      "student_progress": "Student is looking for general principles.",
+      "student_turn": "What pattern do these examples share?"
+    },
+
+    {
+      "belief_profile": "curious_novice",
+      "history": "Student is learning quadratics for the first time.",
+      "student_progress": "Student frequently asks conceptual questions.",
+      "student_turn": "Why do squares have two roots?"
+    },
+
+    {
+      "belief_profile": "curious_novice",
+      "history": "Student is exploring equations.",
+      "student_progress": "Student understands little but wants to know more.",
+      "student_turn": "What happens if the number is negative?"
+    },
+    {
+      "id": "quadratic_factoring_partial_progress",
+      "belief_profile": "engaged_explorer",
+      "history": "Student is solving x^2 - 5x + 6 = 0.",
+      "student_progress": "Student recognized that the equation is quadratic and suggested factoring. Student found the numbers 2 and 3 but has not yet connected them to factors.",
+      "student_turn": "I think 2 and 3 are important."
+    },
+    {
+      "id": "quadratic_multiple_attempts",
+      "belief_profile": "persistent_struggler",
+      "history": "Student is solving x^2 - 5x + 6 = 0.",
+      "student_progress": "Student first guessed solutions. After discussion, student identified the factors (x-2)(x-3) but has not extracted the solutions.",
+      "student_turn": "Now I have the factorization."
+    },
+    {
+      "id": "word_problem_translation",
+      "belief_profile": "confused_but_motivated",
+      "history": "Student is solving a word problem involving the area of a rectangle.",
+      "student_progress": "Student identified the length as x and the width as x-2. Student has not yet constructed the area equation.",
+      "student_turn": "I don't know how to turn this into an equation."
+    },
+    {
+      "id": "physics_motion_problem",
+      "belief_profile": "anxious_student",
+      "history": "Student is solving a kinematics problem. A car starts from rest and accelerates at 2 m/s^2 for 5 seconds.",
+      "student_progress": "Student identified acceleration and time but is unsure which equation to use.",
+      "student_turn": "There seem to be many formulas."
+    },
+    {
+      "id": "fraction_equation",
+      "belief_profile": "help_seeker",
+      "history": "Student is solving 1/2 x + 3 = 7.",
+      "student_progress": "Student subtracted 3 correctly and obtained 1/2 x = 4.",
+      "student_turn": "Now I'm stuck."
+    },
+    {
+      "id": "system_of_equations",
+      "belief_profile": "careful_reasoner",
+      "history": "Student is solving the system x + y = 10 and x - y = 2.",
+      "student_progress": "Student noticed that both equations involve the same variables but has not selected a solution strategy.",
+      "student_turn": "Should I use substitution?"
+    },
+    {
+      "id": "derivative_concept",
+      "belief_profile": "curious_novice",
+      "history": "Student is learning derivatives for the first time.",
+      "student_progress": "Student understands slope between two points but does not yet understand instantaneous rate of change.",
+      "student_turn": "How can a slope exist at only one point?"
+    },
+    {
+      "id": "derivative_computation",
+      "belief_profile": "confused_but_motivated",
+      "history": "Student is differentiating f(x)=x^2.",
+      "student_progress": "Student remembers that differentiation produces a new function but does not recall the power rule.",
+      "student_turn": "I forgot the rule."
+    },
+    {
+      "id": "integral_meaning",
+      "belief_profile": "reflective_student",
+      "history": "Student is learning integration.",
+      "student_progress": "Student knows that differentiation gives slopes but does not understand the purpose of integration.",
+      "student_turn": "What does an integral actually represent?"
+    },
+    {
+      "id": "probability_tree",
+      "belief_profile": "guesser",
+      "history": "Student is solving a probability problem involving two coin tosses.",
+      "student_progress": "Student listed some outcomes but may have missed others.",
+      "student_turn": "I found HH, HT and TT."
+    },
+    {
+      "id": "bayes_reasoning",
+      "belief_profile": "frustrated_and_confused",
+      "history": "Student is working on a medical test problem involving conditional probabilities.",
+      "student_progress": "Student understands sensitivity and specificity but struggles to combine them.",
+      "student_turn": "I don't know which probability matters."
+    },
+    {
+      "id": "geometry_proof",
+      "belief_profile": "productive_confusion",
+      "history": "Student is proving that the angles in a triangle sum to 180 degrees.",
+      "student_progress": "Student has drawn the figure and marked equal angles but has not connected the observations.",
+      "student_turn": "I see the equal angles, but then what?"
+    },
+    {
+      "id": "optimization_problem",
+      "belief_profile": "confused_but_motivated",
+      "history": "Student is maximizing the area of a rectangle with fixed perimeter.",
+      "student_progress": "Student derived an area function but has not recognized it as an optimization problem.",
+      "student_turn": "What do I do with this function now?"
+    },
+    {
+      "id": "linear_algebra_vector",
+      "belief_profile": "curious_novice",
+      "history": "Student is learning vectors.",
+      "student_progress": "Student knows the coordinates of two vectors but has not interpreted them geometrically.",
+      "student_turn": "Why can vectors be added?"
+    },
+    {
+      "id": "matrix_system",
+      "belief_profile": "help_seeker",
+      "history": "Student is solving a system of equations using matrices.",
+      "student_progress": "Student constructed the augmented matrix correctly.",
+      "student_turn": "What operation comes next?"
+    },
+    {
+      "id": "complex_numbers",
+      "belief_profile": "curious_novice",
+      "history": "Student is solving x^2 + 1 = 0.",
+      "student_progress": "Student concluded that no real solution exists.",
+      "student_turn": "Does that mean the equation cannot be solved?"
+    },
+    {
+      "id": "induction_proof",
+      "belief_profile": "reflective_student",
+      "history": "Student is proving a statement by mathematical induction.",
+      "student_progress": "Student completed the base case successfully.",
+      "student_turn": "Why do I need the induction hypothesis?"
+    },
+    {
+      "id": "limits",
+      "belief_profile": "curious_novice",
+      "history": "Student is learning limits.",
+      "student_progress": "Student can evaluate functions directly but does not understand why limits are needed.",
+      "student_turn": "Why can't we just plug in the value?"
+    },
+    {
+      "id": "modelling_problem",
+      "belief_profile": "confused_but_motivated",
+      "history": "Student is modelling population growth.",
+      "student_progress": "Student identified the initial population and growth rate.",
+      "student_turn": "How do I write the formula?"
+    },
+    {
+      "id": "multi_session_learning",
+      "belief_profile": "careful_reasoner",
+      "history": "Over several sessions the student has learned factoring, solving linear equations, and checking solutions. Previous assessments showed strong procedural skills but weak self-explanation.",
+      "student_progress": "Student solved x^2 - 9 = 0 correctly and obtained x = ±3, but gave no justification.",
+      "student_turn": "Those are the answers."
+    },
+    {
+      "id": "misconception_persistence",
+      "belief_profile": "overconfident",
+      "history": "Over three previous sessions the student repeatedly treated square roots as having only one solution.",
+      "student_progress": "Student solved x^2 = 25 and again proposed x = 5 only.",
+      "student_turn": "The answer is 5."
+    },
+    {
+      "id": "advanced_transfer",
+      "belief_profile": "independent_learner",
+      "history": "Student successfully solved several quadratic equations using factoring.",
+      "student_progress": "Student now encounters x^2 - 6x + 5 = 0 and immediately starts searching for factor pairs.",
+      "student_turn": "This looks similar to the previous problems."
+    }
+  ]
+}    
