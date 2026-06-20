@@ -8,6 +8,7 @@ requires-python = ">=3.11,<3.15"
 dependencies = [
     "aidu-support",
     "aidu-ai-controller",
+    "aidu-ai-archetype",
 
     "pydantic>=2.0",
     "rich>=14.3.2",
@@ -43,6 +44,7 @@ packages = ["src/aidu/ai/actor"]
 aidu-ai-controller = { path = "../aidu-ai-controller", editable = true }
 aidu-support = { path = "../aidu-support", editable = true }
 aidu-ai-llm = { path = "../aidu-ai-llm", editable = true }
+aidu-ai-archetype = { path = "../aidu-ai-archetype", editable = true }
 # Ensure local project source is available to the uv runner in editable mode
 aidu-ai-actor = { path = ".", editable = true }
 

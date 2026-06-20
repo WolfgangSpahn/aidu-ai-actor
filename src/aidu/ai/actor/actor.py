@@ -21,15 +21,24 @@ from aidu.ai.llm.agent import Agent, EndAgent
 from aidu.ai.actor.config import config
 from aidu.ai.controller.controller import Controller
 from aidu.ai.core.artifacts import ArtifactType, TextArtifact
-from aidu.ai.core.context import Context
-
+from aidu.ai.core.context import Context, Message
+from aidu.ai.archetype.archetype import archetype_dict
 
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.DEBUG)
+# logger.setLevel(logging.INFO)
 
-console = Console()
+# console = Console()
+
+
+# curl \
+#  -X POST "http://localhost:8000/run" -H "Content-Type: application/json" \
+#  -d '{"summary": "Test run", "messages": [{"role": "user", "content": "Hello"}], "actor": "math_student", "role": "user", "content": "Hello"}'
+
 
 class RunRequest(BaseModel):
+    summary: str
+    messages: list[Message]
+    actor: str
     role: str
     content: str
 
@@ -40,15 +49,20 @@ class Actor:
         name: str,
         agents: list[Agent],
         startup: type[Agent],
-        context: Context | None = None,
         description: str = "",
+        console: Console | None = None,
     ):
+        self.id = str(uuid4())
         self.name = name
         self.startup = startup
-        self.context = context or Context()
-        self.description = description
-        self.controller = Controller(f"Controller of {name}", context=self.context, agents=agents)
+        self.console = console
 
+        self.description = description
+        self.agents = agents
+        self.controller = Controller(
+            f"Controller of {name}",
+            agents=self.agents,
+        )
         self.app = FastAPI(
             title=name,
             description=description,
@@ -59,6 +73,14 @@ class Actor:
     # ------------------------------------------------------------------
     # API
     # ------------------------------------------------------------------
+
+    def build_context_from_request(self, req: RunRequest) -> Context:
+        context = Context()
+        context.create_agent_states(self.agents)
+
+        # populate context with request data
+        # ...
+        return context
 
     def _register_routes(self):
 
@@ -74,15 +96,13 @@ class Actor:
             return {
                 "name": self.name,
                 "description": self.description,
-                "agents": [
-                    agent.__name__
-                    for agent in self.controller.agents.keys()
-                ],
+                "agents": [agent.__name__ for agent in self.controller.agents.keys()],
                 "startup": self.startup.__name__,
             }
 
         @self.app.post("/run")
         def run(req: RunRequest):
+            context = self.build_context_from_request(req)
 
             artifact = TextArtifact(
                 producer=req.role,
@@ -92,19 +112,22 @@ class Actor:
 
             config.max_step = 10
 
-            context =self.controller.run(
+            context = self.controller.run(
                 start=self.startup,
                 artifact=artifact,
+                mailbox=deque(),
+                context=context,
                 max_step=config.max_step,
-                console=console,
+                console=self.console,
             )
 
             logger.debug(f"Run completed with final context: {context}")
+
             final_artifact = list(context.artifacts.items())[-1][1] if context.artifacts else None
 
             return {
-                "role": final_artifact.producer if final_artifact else None,
-                "content": final_artifact.content if final_artifact else None,
+                "role": (final_artifact.producer if final_artifact else None),
+                "content": (final_artifact.content if final_artifact else None),
             }
 
     # ------------------------------------------------------------------
@@ -120,14 +143,7 @@ class Actor:
 
         import uvicorn
 
-        uvicorn.run(
-            self.app,
-            host=host,
-            port=port,
-            reload=reload, 
-            access_log=False,
-            log_config=None
-        )
+        uvicorn.run(self.app, host=host, port=port, reload=reload, access_log=False, log_config=None)
 
     def start(self, host="0.0.0.0", port=8000):
 
@@ -146,13 +162,11 @@ class Actor:
         return thread
 
 
-
 def get_recommendation_data(agents):
 
     rows = []
 
     for agent in agents:
-
         rows.append(
             {
                 "source": agent.__class__.__name__,
@@ -162,10 +176,10 @@ def get_recommendation_data(agents):
                 "continuations": [c.__name__ for c in agent.continuations] if hasattr(agent, "continuations") else [],
             }
         )
-       
+
         if hasattr(agent, "discovered_fn_routes"):
             logger.debug(f"Inspecting agent {agent.__class__.__name__} for discovered routes")
-            for fn_name, mode,target, cont in agent.discovered_fn_routes:
+            for fn_name, mode, target, cont in agent.discovered_fn_routes:
                 logger.debug(f"Found route in {agent.__class__.__name__}: function {fn_name} targets {target.__name__} with continuations {[c.__name__ for c in cont]}")
 
                 rows.append(
@@ -174,19 +188,18 @@ def get_recommendation_data(agents):
                         "function": fn_name,
                         "mode": mode,
                         "target": target.__name__,
-                        "continuations": [
-                            c.__name__
-                            for c in cont
-                        ],
+                        "continuations": [c.__name__ for c in cont],
                     }
                 )
 
     return rows
 
+
 if __name__ == "__main__":
     import argparse
 
     from aidu.ai.core.belief import StudentBelief
+
     # from aidu.ai.agents.math_tutor import MathTutor
     from aidu.ai.agents.math_student import MathStudent
     from aidu.ai.agents.chat_bot import ChatBot
@@ -198,11 +211,9 @@ if __name__ == "__main__":
     # ----------------------------------------------------------------------
     # setup rich logging
     # ----------------------------------------------------------------------
+    console = Console()
 
-    
-    logging.basicConfig(level=logging.INFO,
-                        format="%(message)s - %(funcName)s",
-                        handlers=[RichHandler(console=console)])
+    logging.basicConfig(level=logging.INFO, format="%(message)s - %(funcName)s", handlers=[RichHandler(console=console)])
 
     parser = argparse.ArgumentParser()
     parser.add_argument("--actor", type=str, default="math_tutor", choices=["math_tutor", "user_input"])
@@ -218,16 +229,9 @@ if __name__ == "__main__":
     context = Context()
 
     # Initialize belief state
-    belief = StudentBelief(      # confused_but_motivated
-                engagement= 0.90,
-                confidence= 0.20,
-                confusion= 0.95,
-                frustration= 0.30,
-                curiosity= 0.80,
-                self_explanation= 0.40,
-                guessing= 0.20,
-                help_seeking= 0.90)
-
+    belief = StudentBelief(  # confused_but_motivated
+        engagement=0.90, confidence=0.20, confusion=0.95, frustration=0.30, curiosity=0.80, self_explanation=0.40, guessing=0.20, help_seeking=0.90
+    )
 
     context.state.data["StudentBelief"] = belief
 
@@ -235,17 +239,17 @@ if __name__ == "__main__":
         logger.info("Starting Math Tutor Actor...")
 
         agents = [
-            # MathTutor(client, prompt_args={"tutor_name": "Alice", 
+            # MathTutor(client, prompt_args={"tutor_name": "Alice",
             #                     "focus_area": "general math",
             #                     "history": "Student had been asked to solve the equation x**2 - 4 = 0.",
             #                     "student_progress": "So far student guessed 3 without any reasoning, you asked to try again.",
             #                     "level"     : "beginner"}),
-            MathStudent(client, prompt_args={"student_name": "Bob",
-                                "focus_area": "general math",
-                                "history": "Student had been asked to solve the equation x**2 - 4 = 0.",
-                                "student_progress": "So far student guessed 3 without any reasoning.",
-                                "level"     : "beginner",
-                                "student_beliefs": belief.to_student_prompt(),}),
+            MathStudent(
+                client,
+                archetype_dict["balanced_student"],
+                archetype_dict["learned_helplessness"],
+                0.1,
+            ),
             SymbolicSolver(),
             EndAgent(),
         ]
@@ -256,11 +260,7 @@ if __name__ == "__main__":
 
         # Initialize state for each agent
 
-        for agent in agents:
-            context.state.data.setdefault(
-                agent.__class__.__name__,
-                getattr(agent, "default_state", {}).copy(),
-            )
+        context.create_agent_states(agents)
 
         MathStudent.agent = EndAgent
 
@@ -270,7 +270,6 @@ if __name__ == "__main__":
             name="Demo Math Student Actor",
             agents=agents,
             startup=MathStudent,
-            context=context,
             description="A demo math student actor for testing purposes.",
         )
 
