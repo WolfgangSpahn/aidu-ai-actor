@@ -20,7 +20,7 @@ from rich.logging import RichHandler
 from aidu.ai.llm.agent import Agent, EndAgent
 from aidu.ai.actor.config import config
 from aidu.ai.controller.controller import Controller
-from aidu.ai.core.artifacts import ArtifactType, TextArtifact
+from aidu.ai.core.artifacts import AppletArtifact, ArtifactType, TextArtifact
 from aidu.ai.core.context import Context, Message
 from aidu.ai.archetype.archetype import archetype_dict
 
@@ -41,6 +41,8 @@ class RunRequest(BaseModel):
     actor: str
     role: str
     content: str
+    session_id: str | None = None
+    session_context: dict[str, Any] = Field(default_factory=dict)
 
 
 class Actor:
@@ -50,10 +52,12 @@ class Actor:
         agents: list[Agent],
         startup: type[Agent],
         description: str = "",
+        avatar: str | None = None,
         console: Console | None = None,
     ):
         self.id = str(uuid4())
         self.name = name
+        self.avatar = avatar or name
         self.startup = startup
         self.console = console
 
@@ -123,12 +127,28 @@ class Actor:
 
             logger.debug(f"Run completed with final context: {context}")
 
-            final_artifact = list(context.artifacts.items())[-1][1] if context.artifacts else None
+            artifacts = list(context.artifacts.values())
+            final_artifact = artifacts[-1] if artifacts else None
+            applet_artifact = next(
+                (
+                    artifact
+                    for artifact in reversed(artifacts)
+                    if isinstance(artifact, AppletArtifact)
+                ),
+                None,
+            )
 
-            return {
+            response = {
                 "role": (final_artifact.producer if final_artifact else None),
                 "content": (final_artifact.content if final_artifact else None),
             }
+
+            if applet_artifact:
+                response["applet"] = applet_artifact.content.get("applet")
+                response["applet_command"] = applet_artifact.content.get("command")
+                response["content"] = ""
+
+            return response
 
     # ------------------------------------------------------------------
     # Runtime
