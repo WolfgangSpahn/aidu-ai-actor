@@ -20,7 +20,7 @@ from rich.logging import RichHandler
 from aidu.ai.llm.agent import Agent, EndAgent
 from aidu.ai.actor.config import config
 from aidu.ai.controller.controller import Controller
-from aidu.ai.core.artifacts import AppletArtifact, ArtifactType, TextArtifact
+from aidu.ai.core.artifacts import AppletArtifact, Artifact, ArtifactType, TextArtifact
 from aidu.ai.core.context import Context, Message
 from aidu.ai.archetype.archetype import archetype_dict
 
@@ -32,17 +32,30 @@ logger = logging.getLogger(__name__)
 
 # curl \
 #  -X POST "http://localhost:8000/run" -H "Content-Type: application/json" \
-#  -d '{"summary": "Test run", "messages": [{"role": "user", "content": "Hello"}], "actor": "math_student", "role": "user", "content": "Hello"}'
+#  -d '{"message": {"role": "user", "content": "Hello", "actor": "math_student"}, "info": {"summary": "Test run", "messages": [{"role": "user", "content": "Hello"}]}}'
+
+
+class RunInfo(BaseModel):
+    """Run-level information that is not part of the current message."""
+
+    summary: str = ""
+    messages: list[Message] = Field(default_factory=list)
+    session_id: str | None = None
+    session_context: dict[str, Any] = Field(default_factory=dict)
 
 
 class RunRequest(BaseModel):
-    summary: str
-    messages: list[Message]
-    actor: str
-    role: str
-    content: str
-    session_id: str | None = None
-    session_context: dict[str, Any] = Field(default_factory=dict)
+    """Request sent to an actor service.
+
+    ``message`` is the current actor-style message. Fields such as ``role``,
+    ``content``, ``kind``, and ``applet_input`` belong there.
+
+    ``info`` carries run metadata that helps the actor build context, such as
+    dialog history and session context.
+    """
+
+    message: Message = Field(default_factory=dict)
+    info: RunInfo = Field(default_factory=RunInfo)
 
 
 class Actor:
@@ -90,6 +103,25 @@ class Actor:
         """Return the agent class that should handle this request first."""
         return self.startup
 
+    def build_artifact_from_request(self, req: RunRequest, context: Context) -> Artifact:
+        """Build the first workflow artifact from a frontend/director request."""
+        role = str(req.message.get("role") or "user")
+        content = str(req.message.get("content") or "")
+        applet_input = req.message.get("applet_input")
+
+        if req.message.get("kind") == "applet":
+            return AppletArtifact(
+                producer=role,
+                step=0,
+                content=applet_input if isinstance(applet_input, dict) else {"raw": content},
+            )
+
+        return TextArtifact(
+            producer=role,
+            step=0,
+            content=content,
+        )
+
     def _register_routes(self):
 
         @self.app.get("/health")
@@ -111,6 +143,7 @@ class Actor:
 
         @self.app.post("/run")
         def run(req: RunRequest):
+            content = str(req.message.get("content") or "")
             context = self.build_context_from_request(req)
             startup = self.startup_from_request(req, context)
             logger.warning(
@@ -118,14 +151,10 @@ class Actor:
                 self.name,
                 startup.__name__,
                 self.startup.__name__,
-                req.content[:240],
+                content[:240],
             )
 
-            artifact = TextArtifact(
-                producer=req.role,
-                step=0,
-                content=req.content,
-            )
+            artifact = self.build_artifact_from_request(req, context)
 
             config.max_step = 10
 
