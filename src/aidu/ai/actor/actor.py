@@ -86,6 +86,10 @@ class Actor:
         # ...
         return context
 
+    def startup_from_request(self, req: RunRequest, context: Context) -> type[Agent]:
+        """Return the agent class that should handle this request first."""
+        return self.startup
+
     def _register_routes(self):
 
         @self.app.get("/health")
@@ -100,13 +104,22 @@ class Actor:
             return {
                 "name": self.name,
                 "description": self.description,
-                "agents": [agent.__name__ for agent in self.controller.agents.keys()],
+                "agents": [agent.__class__.__name__ for agent in self.agents],
                 "startup": self.startup.__name__,
+                "routing": "dynamic" if self.__class__.startup_from_request is not Actor.startup_from_request else "static",
             }
 
         @self.app.post("/run")
         def run(req: RunRequest):
             context = self.build_context_from_request(req)
+            startup = self.startup_from_request(req, context)
+            logger.warning(
+                "Actor run name=%s startup=%s default_startup=%s content_prefix=%r",
+                self.name,
+                startup.__name__,
+                self.startup.__name__,
+                req.content[:240],
+            )
 
             artifact = TextArtifact(
                 producer=req.role,
@@ -117,7 +130,7 @@ class Actor:
             config.max_step = 10
 
             context = self.controller.run(
-                start=self.startup,
+                start=startup,
                 artifact=artifact,
                 mailbox=deque(),
                 context=context,
