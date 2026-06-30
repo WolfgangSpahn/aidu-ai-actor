@@ -30,6 +30,15 @@ logger = logging.getLogger(__name__)
 # console = Console()
 
 
+def _is_applet_command_artifact(artifact: Artifact) -> bool:
+    """Return True when an applet artifact is an outbound command."""
+    if not isinstance(artifact, AppletArtifact):
+        return False
+
+    content = artifact.content
+    return bool(content.get("applet") and content.get("command"))
+
+
 # curl \
 #  -X POST "http://localhost:8000/run" -H "Content-Type: application/json" \
 #  -d '{"message": {"role": "user", "content": "Hello", "actor": "math_student"}, "info": {"summary": "Test run", "messages": [{"role": "user", "content": "Hello"}]}}'
@@ -171,11 +180,11 @@ class Actor:
 
             artifacts = list(context.artifacts.values())
             final_artifact = artifacts[-1] if artifacts else None
-            applet_artifact = next(
+            applet_command_artifact = next(
                 (
                     artifact
                     for artifact in reversed(artifacts)
-                    if isinstance(artifact, AppletArtifact)
+                    if _is_applet_command_artifact(artifact)
                 ),
                 None,
             )
@@ -185,10 +194,11 @@ class Actor:
                 "content": (final_artifact.content if final_artifact else None),
             }
 
-            if applet_artifact:
-                response["applet"] = applet_artifact.content.get("applet")
-                response["applet_command"] = applet_artifact.content.get("command")
-                response["content"] = ""
+            if applet_command_artifact:
+                response["applet"] = applet_command_artifact.content.get("applet")
+                response["applet_command"] = applet_command_artifact.content.get("command")
+                if final_artifact is applet_command_artifact:
+                    response["content"] = ""
 
             return response
 
