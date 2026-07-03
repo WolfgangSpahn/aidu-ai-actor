@@ -48,22 +48,23 @@ class RunInfo(BaseModel):
     """Run-level information that is not part of the current message."""
 
     summary: str = ""
-    messages: list[Message] = Field(default_factory=list)
+    messages: list[dict[str, Any]] = Field(default_factory=list)
     session_id: str | None = None
     session_context: dict[str, Any] = Field(default_factory=dict)
+    applet_input: dict[str, Any] | None = None
 
 
 class RunRequest(BaseModel):
     """Request sent to an actor service.
 
     ``message`` is the current actor-style message. Fields such as ``role``,
-    ``content``, ``kind``, and ``applet_input`` belong there.
+    ``content``, ``actor``, and ``kind`` belong there.
 
     ``info`` carries run metadata that helps the actor build context, such as
-    dialog history and session context.
+    dialog history, session context, and structured applet input.
     """
 
-    message: Message = Field(default_factory=dict)
+    message: Message = Field(default_factory=Message)
     info: RunInfo = Field(default_factory=RunInfo)
 
 
@@ -114,11 +115,11 @@ class Actor:
 
     def build_artifact_from_request(self, req: RunRequest, context: Context) -> Artifact:
         """Build the first workflow artifact from a frontend/director request."""
-        role = str(req.message.get("role") or "user")
-        content = str(req.message.get("content") or "")
-        applet_input = req.message.get("applet_input")
+        role = str(req.message.role or "user")
+        content = str(req.message.content or "")
+        applet_input = req.info.applet_input
 
-        if req.message.get("kind") == "applet":
+        if req.message.kind == "applet":
             return AppletArtifact(
                 producer=role,
                 step=0,
@@ -152,7 +153,7 @@ class Actor:
 
         @self.app.post("/run")
         def run(req: RunRequest):
-            content = str(req.message.get("content") or "")
+            content = str(req.message.content or "")
             context = self.build_context_from_request(req)
             startup = self.startup_from_request(req, context)
             logger.warning(
