@@ -27,6 +27,18 @@ from aidu.ai.archetype.archetype import archetype_dict
 logger = logging.getLogger(__name__)
 # logger.setLevel(logging.INFO)
 
+PROGRESS_TARGET_ALIASES = {
+    "atomic-particles": "neutron-identity",
+}
+PROGRESS_META_KEYS = {
+    "progress_update_count",
+    "progress_update_indicator",
+}
+
+
+def _canonical_progress_target_id(target_id: str) -> str:
+    return PROGRESS_TARGET_ALIASES.get(target_id, target_id)
+
 # console = Console()
 
 
@@ -37,6 +49,42 @@ def _is_applet_command_artifact(artifact: Artifact) -> bool:
 
     content = artifact.content
     return bool(content.get("applet") and content.get("command"))
+
+
+def _normalize_student_progress(student_progress: Any) -> dict[str, float]:
+    """Return progress as ``target_id -> numeric progress``."""
+    if student_progress is None:
+        return {}
+
+    if hasattr(student_progress, "model_dump"):
+        student_progress = student_progress.model_dump(mode="json")
+
+    if not isinstance(student_progress, dict):
+        return {}
+
+    # Legacy shape: {"targets": [{"id": "...", "mastery": 0.0}, ...], ...}
+    targets = student_progress.get("targets")
+    if isinstance(targets, list):
+        progress_by_target: dict[str, float] = {}
+        for target in targets:
+            if not isinstance(target, dict):
+                continue
+            target_id = str(target.get("id") or "").strip()
+            if not target_id or target_id in PROGRESS_META_KEYS:
+                continue
+            mastery = target.get("mastery")
+            progress_by_target[_canonical_progress_target_id(target_id)] = float(mastery) if isinstance(mastery, (int, float)) else 0.0
+        return progress_by_target
+
+    # Current/expected shape: {"target-id": 0.0, ...}
+    normalized: dict[str, float] = {}
+    for key, value in student_progress.items():
+        target_id = str(key)
+        if target_id in PROGRESS_META_KEYS:
+            continue
+        if isinstance(value, (int, float)):
+            normalized[_canonical_progress_target_id(target_id)] = float(value)
+    return normalized
 
 
 # curl \
@@ -194,6 +242,22 @@ class Actor:
                 "role": (final_artifact.producer if final_artifact else None),
                 "content": (final_artifact.content if final_artifact else None),
             }
+            student_belief = context.state.data.get("StudentBelief")
+            if student_belief is not None:
+                response["backend_belief_state"] = (
+                    student_belief.model_dump(mode="json")
+                    if hasattr(student_belief, "model_dump")
+                    else student_belief
+                )
+            student_progress = context.state.data.get("StudentProgress")
+            normalized_progress = _normalize_student_progress(student_progress)
+            if normalized_progress:
+                response["backend_progress_state"] = normalized_progress
+                logger.warning(
+                    "Actor response includes backend_progress_state keys=%s nonzero=%s",
+                    sorted(normalized_progress.keys()),
+                    {key: value for key, value in normalized_progress.items() if value},
+                )
 
             if applet_command_artifact:
                 response["applet"] = applet_command_artifact.content.get("applet")
