@@ -1,3 +1,7 @@
+# Copyright (C) 2026 Dr. Wolfgang Spahn, PHBern
+#
+# MIT License — see LICENSE file for details.
+# If you use this software in academic work, citation of the original author is requested.
 # src/aidu/ai/actor/actor.py
 
 from __future__ import annotations
@@ -49,6 +53,34 @@ def _is_applet_command_artifact(artifact: Artifact) -> bool:
 
     content = artifact.content
     return bool(content.get("applet") and content.get("command"))
+
+
+def _activity_event_from_artifact(artifact: Artifact) -> dict[str, Any] | None:
+    """Return a frontend activity event carried by a structured artifact."""
+    if getattr(artifact, "type", "") != "json":
+        return None
+
+    content = artifact.content
+    if not isinstance(content, dict):
+        return None
+
+    event_type = str(content.get("type") or "")
+    if event_type != "ai_activity_finalized":
+        return None
+
+    return content
+
+
+def _display_artifact_from_artifacts(artifacts: list[Artifact]) -> Artifact | None:
+    """Return the latest artifact that should be shown as assistant text."""
+    return next(
+        (
+            artifact
+            for artifact in reversed(artifacts)
+            if isinstance(artifact, TextArtifact) and isinstance(artifact.content, str)
+        ),
+        None,
+    )
 
 
 def _normalize_student_progress(student_progress: Any) -> dict[str, float]:
@@ -229,6 +261,7 @@ class Actor:
 
             artifacts = list(context.artifacts.values())
             final_artifact = artifacts[-1] if artifacts else None
+            display_artifact = _display_artifact_from_artifacts(artifacts)
             applet_command_artifact = next(
                 (
                     artifact
@@ -237,10 +270,19 @@ class Actor:
                 ),
                 None,
             )
+            activity_event = next(
+                (
+                    event
+                    for artifact in reversed(artifacts)
+                    if (event := _activity_event_from_artifact(artifact))
+                ),
+                None,
+            )
 
+            response_artifact = display_artifact or final_artifact
             response = {
-                "role": (final_artifact.producer if final_artifact else None),
-                "content": (final_artifact.content if final_artifact else None),
+                "role": (response_artifact.producer if response_artifact else None),
+                "content": (response_artifact.content if response_artifact else None),
             }
             student_belief = context.state.data.get("StudentBelief")
             if student_belief is not None:
@@ -263,6 +305,12 @@ class Actor:
                 response["applet"] = applet_command_artifact.content.get("applet")
                 response["applet_command"] = applet_command_artifact.content.get("command")
                 if final_artifact is applet_command_artifact:
+                    response["content"] = ""
+
+            if activity_event:
+                response["activity_event"] = activity_event
+                logger.info("Actor response includes activity_event=%s", activity_event)
+                if display_artifact is None and final_artifact is not None and _activity_event_from_artifact(final_artifact):
                     response["content"] = ""
 
             return response
