@@ -43,6 +43,18 @@ PROGRESS_META_KEYS = {
 def _canonical_progress_target_id(target_id: str) -> str:
     return PROGRESS_TARGET_ALIASES.get(target_id, target_id)
 
+
+def _run_info_on_air(session_context: dict[str, Any]) -> bool:
+    explicit = session_context.get("onAir", session_context.get("on_air"))
+    if explicit is not None:
+        return bool(explicit)
+
+    return not (
+        str(session_context.get("username") or "").strip().lower() == "anonymous"
+        and not str(session_context.get("class_name") or "").strip()
+        and not str(session_context.get("class_voucher") or "").strip()
+    )
+
 # console = Console()
 
 
@@ -183,11 +195,15 @@ class Actor:
 
     def build_context_from_request(self, req: RunRequest) -> Context:
         context = Context()
+        self.configure_context_from_request(context, req)
         context.create_agent_states(self.agents)
 
         # populate context with request data
         # ...
         return context
+
+    def configure_context_from_request(self, context: Context, req: RunRequest) -> None:
+        context.on_air = _run_info_on_air(req.info.session_context)
 
     def startup_from_request(self, req: RunRequest, context: Context) -> type[Agent]:
         """Return the agent class that should handle this request first."""
