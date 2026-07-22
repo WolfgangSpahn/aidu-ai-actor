@@ -42,7 +42,7 @@ class TurnSideTasks:
         return self
 
     def spawn(self, name: str, fn: SideTaskCallable, on_result: SideResultHandler | None = None) -> None:
-        logger.info("Turn side task spawned: %s", name)
+        logger.debug("Turn side task spawned: %s", name)
         self.tasks.append((name, self.executor.submit(fn), on_result))
 
     def join(self, context: Context) -> None:
@@ -52,7 +52,7 @@ class TurnSideTasks:
             for name, future, on_result in self.tasks:
                 try:
                     result = future.result()
-                    logger.info("Turn side task completed: %s", name)
+                    logger.debug("Turn side task completed: %s", name)
                     if on_result is not None:
                         on_result(result, context)
                 except Exception:

@@ -11,6 +11,7 @@ import json
 
 from collections import deque
 from multiprocessing import context
+from queue import Queue
 import threading
 from typing import Annotated, Any
 from uuid import uuid4
@@ -95,8 +96,8 @@ def _display_artifact_from_artifacts(artifacts: list[Artifact]) -> Artifact | No
     )
 
 
-def _normalize_student_progress(student_progress: Any) -> dict[str, float]:
-    """Return progress as ``target_id -> numeric progress``."""
+def _normalize_student_progress(student_progress: Any) -> dict[str, Any]:
+    """Return the actor's serializable target progress state."""
     if student_progress is None:
         return {}
 
@@ -120,14 +121,23 @@ def _normalize_student_progress(student_progress: Any) -> dict[str, float]:
             progress_by_target[_canonical_progress_target_id(target_id)] = float(mastery) if isinstance(mastery, (int, float)) else 0.0
         return progress_by_target
 
-    # Current/expected shape: {"target-id": 0.0, ...}
-    normalized: dict[str, float] = {}
+    normalized: dict[str, Any] = {}
     for key, value in student_progress.items():
         target_id = str(key)
         if target_id in PROGRESS_META_KEYS:
             continue
         if isinstance(value, (int, float)):
             normalized[_canonical_progress_target_id(target_id)] = float(value)
+        elif isinstance(value, dict):
+            mastery = value.get("mastery")
+            positive = value.get("positive_evidence")
+            negative = value.get("negative_evidence")
+            if all(isinstance(item, (int, float)) for item in (mastery, positive, negative)):
+                normalized[_canonical_progress_target_id(target_id)] = {
+                    "mastery": max(0.0, min(1.0, float(mastery))),
+                    "positive_evidence": max(0.0, float(positive)),
+                    "negative_evidence": max(0.0, float(negative)),
+                }
     return normalized
 
 
@@ -228,6 +238,69 @@ class Actor:
             content=content,
         )
 
+    def execute_run(self, req: RunRequest, stream_callback=None) -> dict[str, Any]:
+        """Execute one actor turn, optionally reporting provider text deltas."""
+        content = str(req.message.content or "")
+        context = self.build_context_from_request(req)
+        if stream_callback is not None:
+            context.control.data["stream_callback"] = stream_callback
+        startup = self.startup_from_request(req, context)
+        logger.debug(
+            "Actor run name=%s startup=%s default_startup=%s content_prefix=%r",
+            self.name,
+            startup.__name__,
+            self.startup.__name__,
+            content[:240],
+        )
+        artifact = self.build_artifact_from_request(req, context)
+        config.max_step = 10
+        context = self.controller.run(
+            start=startup,
+            artifact=artifact,
+            mailbox=deque(),
+            context=context,
+            max_step=config.max_step,
+            console=self.console,
+        )
+
+        artifacts = list(context.artifacts.values())
+        final_artifact = artifacts[-1] if artifacts else None
+        display_artifact = _display_artifact_from_artifacts(artifacts)
+        applet_command_artifact = next(
+            (artifact for artifact in reversed(artifacts) if _is_applet_command_artifact(artifact)),
+            None,
+        )
+        activity_event = next(
+            (event for artifact in reversed(artifacts) if (event := _activity_event_from_artifact(artifact))),
+            None,
+        )
+        response_artifact = display_artifact or final_artifact
+        response: dict[str, Any] = {
+            "role": response_artifact.producer if response_artifact else None,
+            "content": response_artifact.content if response_artifact else None,
+        }
+        student_belief = context.state.data.get("StudentBelief")
+        if student_belief is not None:
+            response["backend_belief_state"] = (
+                student_belief.model_dump(mode="json")
+                if hasattr(student_belief, "model_dump")
+                else student_belief
+            )
+        student_progress = context.state.data.get("StudentProgress")
+        normalized_progress = _normalize_student_progress(student_progress)
+        if normalized_progress:
+            response["backend_progress_state"] = normalized_progress
+        if applet_command_artifact:
+            response["applet"] = applet_command_artifact.content.get("applet")
+            response["applet_command"] = applet_command_artifact.content.get("command")
+            if final_artifact is applet_command_artifact:
+                response["content"] = ""
+        if activity_event:
+            response["activity_event"] = activity_event
+            if display_artifact is None and final_artifact is not None and _activity_event_from_artifact(final_artifact):
+                response["content"] = ""
+        return response
+
     def _register_routes(self):
 
         @self.app.get("/health")
@@ -249,87 +322,34 @@ class Actor:
 
         @self.app.post("/run")
         def run(req: RunRequest):
-            content = str(req.message.content or "")
-            context = self.build_context_from_request(req)
-            startup = self.startup_from_request(req, context)
-            logger.warning(
-                "Actor run name=%s startup=%s default_startup=%s content_prefix=%r",
-                self.name,
-                startup.__name__,
-                self.startup.__name__,
-                content[:240],
-            )
+            return self.execute_run(req)
 
-            artifact = self.build_artifact_from_request(req, context)
+        @self.app.post("/run/stream")
+        def run_stream(req: RunRequest):
+            def generate():
+                events: Queue = Queue()
 
-            config.max_step = 10
+                def execute() -> None:
+                    try:
+                        response = self.execute_run(
+                            req,
+                            stream_callback=lambda delta: events.put({"type": "delta", "content": delta}),
+                        )
+                        events.put({"type": "final", "response": response})
+                    except Exception as exc:
+                        logger.exception("Streaming actor run failed")
+                        events.put({"type": "error", "error": str(exc)})
+                    finally:
+                        events.put(None)
 
-            context = self.controller.run(
-                start=startup,
-                artifact=artifact,
-                mailbox=deque(),
-                context=context,
-                max_step=config.max_step,
-                console=self.console,
-            )
+                threading.Thread(target=execute, daemon=True).start()
+                while True:
+                    event = events.get()
+                    if event is None:
+                        break
+                    yield json.dumps(event, default=str) + "\n"
 
-            logger.debug(f"Run completed with final context: {context}")
-
-            artifacts = list(context.artifacts.values())
-            final_artifact = artifacts[-1] if artifacts else None
-            display_artifact = _display_artifact_from_artifacts(artifacts)
-            applet_command_artifact = next(
-                (
-                    artifact
-                    for artifact in reversed(artifacts)
-                    if _is_applet_command_artifact(artifact)
-                ),
-                None,
-            )
-            activity_event = next(
-                (
-                    event
-                    for artifact in reversed(artifacts)
-                    if (event := _activity_event_from_artifact(artifact))
-                ),
-                None,
-            )
-
-            response_artifact = display_artifact or final_artifact
-            response = {
-                "role": (response_artifact.producer if response_artifact else None),
-                "content": (response_artifact.content if response_artifact else None),
-            }
-            student_belief = context.state.data.get("StudentBelief")
-            if student_belief is not None:
-                response["backend_belief_state"] = (
-                    student_belief.model_dump(mode="json")
-                    if hasattr(student_belief, "model_dump")
-                    else student_belief
-                )
-            student_progress = context.state.data.get("StudentProgress")
-            normalized_progress = _normalize_student_progress(student_progress)
-            if normalized_progress:
-                response["backend_progress_state"] = normalized_progress
-                logger.warning(
-                    "Actor response includes backend_progress_state keys=%s nonzero=%s",
-                    sorted(normalized_progress.keys()),
-                    {key: value for key, value in normalized_progress.items() if value},
-                )
-
-            if applet_command_artifact:
-                response["applet"] = applet_command_artifact.content.get("applet")
-                response["applet_command"] = applet_command_artifact.content.get("command")
-                if final_artifact is applet_command_artifact:
-                    response["content"] = ""
-
-            if activity_event:
-                response["activity_event"] = activity_event
-                logger.info("Actor response includes activity_event=%s", activity_event)
-                if display_artifact is None and final_artifact is not None and _activity_event_from_artifact(final_artifact):
-                    response["content"] = ""
-
-            return response
+            return StreamingResponse(generate(), media_type="application/x-ndjson")
 
     # ------------------------------------------------------------------
     # Runtime
