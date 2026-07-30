@@ -2,7 +2,8 @@
 #
 # MIT License — see LICENSE file for details.
 # If you use this software in academic work, citation of the original author is requested.
-# src/aidu/ai/actor/config.py
+
+"""Hold the process-wide runtime limits and diagnostic switches used by actors."""
 
 
 class Config:

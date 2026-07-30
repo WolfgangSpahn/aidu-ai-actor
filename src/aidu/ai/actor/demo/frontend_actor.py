@@ -2,6 +2,15 @@
 #
 # MIT License — see LICENSE file for details.
 # If you use this software in academic work, citation of the original author is requested.
+
+"""
+Serve a standalone prototype browser frontend and publish its turns over SSE.
+
+This module hosts files from the local ``demo`` directory, accepts browser
+input at ``/input``, and streams turns from ``/events``. It currently
+acknowledges input locally instead of forwarding it to the configured director.
+"""
+
 from __future__ import annotations
 
 import json
@@ -23,6 +32,7 @@ logger = logging.getLogger(__name__)
 # Models
 # ------------------------------------------------------------------
 
+
 class UserInput(BaseModel):
     role: str
     content: str
@@ -31,6 +41,7 @@ class UserInput(BaseModel):
 # ------------------------------------------------------------------
 # Frontend Actor
 # ------------------------------------------------------------------
+
 
 class FrontendActor:
     def __init__(
@@ -54,10 +65,7 @@ class FrontendActor:
         self.turns: list[dict[str, str]] = []
         self.subscribers: set[queue.Queue[dict[str, str]]] = set()
 
-        self.web_dir = (
-            Path(__file__).parent
-            / "demo"
-        )
+        self.web_dir = Path(__file__).parent
 
         # check if the web_dir exists
         if not self.web_dir.exists():
@@ -97,9 +105,7 @@ class FrontendActor:
         if (self.web_dir / "assets").exists():
             self.app.mount(
                 "/assets",
-                StaticFiles(
-                    directory=self.web_dir / "assets"
-                ),
+                StaticFiles(directory=self.web_dir / "assets"),
                 name="assets",
             )
 
@@ -244,7 +250,6 @@ class FrontendActor:
 # ------------------------------------------------------------------
 
 if __name__ == "__main__":
-
     import argparse
 
     from rich.console import Console
@@ -269,11 +274,7 @@ if __name__ == "__main__":
         default="0.0.0.0",
     )
 
-    parser.add_argument(
-        "--port",
-        type=int,
-        default=8100
-    )
+    parser.add_argument("--port", type=int, default=8100)
 
     parser.add_argument(
         "--director",

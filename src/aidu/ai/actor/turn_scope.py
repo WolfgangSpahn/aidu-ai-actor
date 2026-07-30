@@ -2,6 +2,29 @@
 #
 # MIT License — see LICENSE file for details.
 # If you use this software in academic work, citation of the original author is requested.
+"""
+Coordinate background work that must finish before an actor turn is returned.
+
+For one student message, the tutor can generate its reply while three
+assessors evaluate the turn in parallel::
+
+    Student message
+      +-- Tutor generates the response
+      +-- Learning-target assessor updates knowledge progress
+      +-- Student-belief assessor updates the learner model
+      +-- AI supervisor evaluates the preceding tutor intervention
+                           |
+                    JoinEndAgent waits
+                           |
+                 Actor builds final response
+
+The controller deep-copies ``Context`` while chaining agents. Every copy must
+therefore retain the same ``TurnSideTasks`` handle; otherwise a later agent
+could not find or await work started by an earlier agent. ``JoinEndAgent`` is
+the explicit join point that waits for these tasks and applies their results
+before the actor reads the final belief and knowledge state.
+"""
+
 from __future__ import annotations
 
 import concurrent.futures
@@ -32,7 +55,7 @@ class TurnSideTasks:
 
     executor: concurrent.futures.ThreadPoolExecutor = field(
         default_factory=lambda: concurrent.futures.ThreadPoolExecutor(
-            max_workers=2,
+            max_workers=3,
             thread_name_prefix="aidu-turn-side",
         )
     )
@@ -71,10 +94,11 @@ def get_turn_side_tasks(context: Context) -> TurnSideTasks:
 
 
 class JoinEndAgent(EndAgent):
-    """End agent that joins turn side effects before the actor response is built."""
+    """Join turn side effects and preserve the workflow's result artifact."""
 
     def run(self, artifact, context: Context, agents=None) -> tuple[AgentResult, Context]:
         side = context.control.data.pop(SIDE_TASKS_KEY, None)
         if isinstance(side, TurnSideTasks):
             side.join(context)
-        return super().run(artifact=artifact, context=context, agents=agents)
+        context.step += 1
+        return self.result(artifacts=[artifact], recommendations=[]), context

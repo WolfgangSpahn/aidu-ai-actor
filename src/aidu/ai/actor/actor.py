@@ -2,7 +2,13 @@
 #
 # MIT License — see LICENSE file for details.
 # If you use this software in academic work, citation of the original author is requested.
-# src/aidu/ai/actor/actor.py
+
+"""
+Implement the REST-facing actor that builds context and runs agent workflows.
+
+This module registers run routes, delegates each request to a ``Controller``,
+and converts the resulting artifacts and state into the HTTP response.
+"""
 
 from __future__ import annotations
 import logging
@@ -13,164 +19,45 @@ from collections import deque
 from multiprocessing import context
 from queue import Queue
 import threading
-from typing import Annotated, Any
+from typing import Annotated, Any, cast
 from uuid import uuid4
 
 from fastapi import FastAPI
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel, Field
 from rich.console import Console
 from rich.logging import RichHandler
 
 from aidu.ai.llm.agent import Agent, EndAgent
 from aidu.ai.actor.config import config
 from aidu.ai.controller.controller import Controller
-from aidu.ai.core.artifacts import AppletArtifact, Artifact, ArtifactType, TextArtifact
-from aidu.ai.core.context import Context, Message
+from aidu.ai.core.artifacts import (
+    ActivityEventArtifact,
+    AppletArtifact,
+    Artifact,
+    TextArtifact,
+    latest_display_artifact,
+)
+from aidu.ai.core.context import Context
 from aidu.ai.archetype.archetype import archetype_dict
+from aidu.ai.core.knowledge_progress import StudentKnowledgeProgress
+from aidu.ai.actor.types import RunRequest
 
 logger = logging.getLogger(__name__)
 # logger.setLevel(logging.INFO)
 
-PROGRESS_TARGET_ALIASES = {
-    "atomic-particles": "neutron-identity",
-}
-PROGRESS_META_KEYS = {
-    "progress_update_count",
-    "progress_update_indicator",
-}
-
-
-def _canonical_progress_target_id(target_id: str) -> str:
-    return PROGRESS_TARGET_ALIASES.get(target_id, target_id)
-
-
-def _run_info_on_air(session_context: dict[str, Any]) -> bool:
-    explicit = session_context.get("onAir", session_context.get("on_air"))
-    if explicit is not None:
-        return bool(explicit)
-
-    return not (
-        str(session_context.get("username") or "").strip().lower() == "anonymous"
-        and not str(session_context.get("class_name") or "").strip()
-        and not str(session_context.get("class_voucher") or "").strip()
-    )
-
 # console = Console()
 
 
-def _is_applet_command_artifact(artifact: Artifact) -> bool:
-    """Return True when an applet artifact is an outbound command."""
-    if not isinstance(artifact, AppletArtifact):
-        return False
+class Actor:
+    """Run an agent workflow behind a small FastAPI service.
 
-    content = artifact.content
-    return bool(content.get("applet") and content.get("command"))
-
-
-def _activity_event_from_artifact(artifact: Artifact) -> dict[str, Any] | None:
-    """Return a frontend activity event carried by a structured artifact."""
-    if getattr(artifact, "type", "") != "json":
-        return None
-
-    content = artifact.content
-    if not isinstance(content, dict):
-        return None
-
-    event_type = str(content.get("type") or "")
-    if event_type != "ai_activity_finalized":
-        return None
-
-    return content
-
-
-def _display_artifact_from_artifacts(artifacts: list[Artifact]) -> Artifact | None:
-    """Return the latest artifact that should be shown as assistant text."""
-    return next(
-        (
-            artifact
-            for artifact in reversed(artifacts)
-            if isinstance(artifact, TextArtifact) and isinstance(artifact.content, str)
-        ),
-        None,
-    )
-
-
-def _normalize_student_progress(student_progress: Any) -> dict[str, Any]:
-    """Return the actor's serializable target progress state."""
-    if student_progress is None:
-        return {}
-
-    if hasattr(student_progress, "model_dump"):
-        student_progress = student_progress.model_dump(mode="json")
-
-    if not isinstance(student_progress, dict):
-        return {}
-
-    # Legacy shape: {"targets": [{"id": "...", "mastery": 0.0}, ...], ...}
-    targets = student_progress.get("targets")
-    if isinstance(targets, list):
-        progress_by_target: dict[str, float] = {}
-        for target in targets:
-            if not isinstance(target, dict):
-                continue
-            target_id = str(target.get("id") or "").strip()
-            if not target_id or target_id in PROGRESS_META_KEYS:
-                continue
-            mastery = target.get("mastery")
-            progress_by_target[_canonical_progress_target_id(target_id)] = float(mastery) if isinstance(mastery, (int, float)) else 0.0
-        return progress_by_target
-
-    normalized: dict[str, Any] = {}
-    for key, value in student_progress.items():
-        target_id = str(key)
-        if target_id in PROGRESS_META_KEYS:
-            continue
-        if isinstance(value, (int, float)):
-            normalized[_canonical_progress_target_id(target_id)] = float(value)
-        elif isinstance(value, dict):
-            mastery = value.get("mastery")
-            positive = value.get("positive_evidence")
-            negative = value.get("negative_evidence")
-            if all(isinstance(item, (int, float)) for item in (mastery, positive, negative)):
-                normalized[_canonical_progress_target_id(target_id)] = {
-                    "mastery": max(0.0, min(1.0, float(mastery))),
-                    "positive_evidence": max(0.0, float(positive)),
-                    "negative_evidence": max(0.0, float(negative)),
-                }
-    return normalized
-
-
-# curl \
-#  -X POST "http://localhost:8000/run" -H "Content-Type: application/json" \
-#  -d '{"message": {"role": "user", "content": "Hello", "actor": "math_student"}, "info": {"summary": "Test run", "messages": [{"role": "user", "content": "Hello"}]}}'
-
-
-class RunInfo(BaseModel):
-    """Run-level information that is not part of the current message."""
-
-    summary: str = ""
-    messages: list[dict[str, Any]] = Field(default_factory=list)
-    session_id: str | None = None
-    session_context: dict[str, Any] = Field(default_factory=dict)
-    applet_input: dict[str, Any] | None = None
-
-
-class RunRequest(BaseModel):
-    """Request sent to an actor service.
-
-    ``message`` is the current actor-style message. Fields such as ``role``,
-    ``content``, ``actor``, and ``kind`` belong there.
-
-    ``info`` carries run metadata that helps the actor build context, such as
-    dialog history, session context, and structured applet input.
+    The HTTP routes call :meth:`execute_run`, which applies a sequence of
+    overridable request-lifecycle hooks before handing the resulting artifact
+    and context to the controller. Subclasses normally customize context
+    construction, startup-agent selection, or request-artifact construction;
+    they do not register a separate route for those hooks.
     """
 
-    message: Message = Field(default_factory=Message)
-    info: RunInfo = Field(default_factory=RunInfo)
-
-
-class Actor:
     def __init__(
         self,
         name: str,
@@ -200,10 +87,18 @@ class Actor:
         self._register_routes()
 
     # ------------------------------------------------------------------
-    # API
+    # Request lifecycle hooks
     # ------------------------------------------------------------------
 
     def build_context_from_request(self, req: RunRequest) -> Context:
+        """Build the workflow context used for one ``RunRequest``.
+
+        This is an overridable helper hook, not an HTTP route. ``execute_run``
+        invokes it for both ``POST /run`` and ``POST /run/stream``. The base
+        implementation applies common request configuration and initializes
+        agent state; specialized actors may add session context, dialog
+        history, student belief, and teacher-target-derived progress.
+        """
         context = Context()
         self.configure_context_from_request(context, req)
         context.create_agent_states(self.agents)
@@ -213,14 +108,19 @@ class Actor:
         return context
 
     def configure_context_from_request(self, context: Context, req: RunRequest) -> None:
-        context.on_air = _run_info_on_air(req.info.session_context)
+        """Copy the backend's provider-access decision into the workflow context."""
+        context.on_air = req.info.session_context.on_air
 
     def startup_from_request(self, req: RunRequest, context: Context) -> type[Agent]:
         """Return the agent class that should handle this request first."""
         return self.startup
 
     def build_artifact_from_request(self, req: RunRequest, context: Context) -> Artifact:
-        """Build the first workflow artifact from a frontend/director request."""
+        """Convert the request message into the controller's initial artifact.
+
+        This is another overridable lifecycle hook called by ``execute_run``;
+        it is not itself registered as an HTTP route.
+        """
         role = str(req.message.role or "user")
         content = str(req.message.content or "")
         applet_input = req.info.applet_input
@@ -265,13 +165,13 @@ class Actor:
 
         artifacts = list(context.artifacts.values())
         final_artifact = artifacts[-1] if artifacts else None
-        display_artifact = _display_artifact_from_artifacts(artifacts)
+        display_artifact = latest_display_artifact(artifacts)
         applet_command_artifact = next(
-            (artifact for artifact in reversed(artifacts) if _is_applet_command_artifact(artifact)),
+            (artifact for artifact in reversed(artifacts) if isinstance(artifact, AppletArtifact) and artifact.is_outbound_command()),
             None,
         )
         activity_event = next(
-            (event for artifact in reversed(artifacts) if (event := _activity_event_from_artifact(artifact))),
+            (artifact.content for artifact in reversed(artifacts) if isinstance(artifact, ActivityEventArtifact)),
             None,
         )
         response_artifact = display_artifact or final_artifact
@@ -281,15 +181,17 @@ class Actor:
         }
         student_belief = context.state.data.get("StudentBelief")
         if student_belief is not None:
-            response["backend_belief_state"] = (
-                student_belief.model_dump(mode="json")
-                if hasattr(student_belief, "model_dump")
-                else student_belief
+            response["backend_belief_state"] = student_belief.model_dump(mode="json") if hasattr(student_belief, "model_dump") else student_belief
+        student_knowledge_progress: StudentKnowledgeProgress | None = (
+            context.state.data.get("StudentKnowledgeProgress")
+        )
+        if student_knowledge_progress is not None:
+            response["backend_knowledge_progress_state"] = (
+                student_knowledge_progress.clamped().model_dump(mode="json")
             )
-        student_progress = context.state.data.get("StudentProgress")
-        normalized_progress = _normalize_student_progress(student_progress)
-        if normalized_progress:
-            response["backend_progress_state"] = normalized_progress
+        supervisor_state = context.state.data.get("SupervisorState")
+        if supervisor_state is not None:
+            response["backend_supervision_state"] = supervisor_state.model_dump(mode="json") if hasattr(supervisor_state, "model_dump") else supervisor_state
         if applet_command_artifact:
             response["applet"] = applet_command_artifact.content.get("applet")
             response["applet_command"] = applet_command_artifact.content.get("command")
@@ -297,11 +199,16 @@ class Actor:
                 response["content"] = ""
         if activity_event:
             response["activity_event"] = activity_event
-            if display_artifact is None and final_artifact is not None and _activity_event_from_artifact(final_artifact):
+            if display_artifact is None and isinstance(final_artifact, ActivityEventArtifact):
                 response["content"] = ""
         return response
 
+    # ------------------------------------------------------------------
+    # FastAPI route registration
+    # ------------------------------------------------------------------
+
     def _register_routes(self):
+        """Register health, metadata, synchronous-run, and streaming-run routes."""
 
         @self.app.get("/health")
         def health():
@@ -463,7 +370,7 @@ if __name__ == "__main__":
             # MathTutor(client, prompt_args={"tutor_name": "Alice",
             #                     "focus_area": "general math",
             #                     "history": "Student had been asked to solve the equation x**2 - 4 = 0.",
-            #                     "student_progress": "So far student guessed 3 without any reasoning, you asked to try again.",
+            #                     "student_knowledge_progress": "So far student guessed 3 without any reasoning, you asked to try again.",
             #                     "level"     : "beginner"}),
             MathStudent(
                 client,
