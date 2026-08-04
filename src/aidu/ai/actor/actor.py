@@ -190,7 +190,7 @@ class Actor:
                 student_knowledge_progress.clamped().model_dump(mode="json")
             )
         supervisor_state = context.state.data.get("SupervisorState")
-        if supervisor_state is not None:
+        if supervisor_state is not None and context.control.data.get("emit_supervision_state", True):
             response["backend_supervision_state"] = supervisor_state.model_dump(mode="json") if hasattr(supervisor_state, "model_dump") else supervisor_state
         if applet_command_artifact:
             response["applet"] = applet_command_artifact.content.get("applet")
