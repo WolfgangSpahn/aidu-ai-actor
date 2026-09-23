@@ -179,6 +179,13 @@ class Actor:
             "role": response_artifact.producer if response_artifact else None,
             "content": response_artifact.content if response_artifact else None,
         }
+        evidence = {
+            kind: context.control.data[key]
+            for kind, key in (("knowledge", "learning_target_applied_evidence"), ("belief", "student_belief_assessment"))
+            if key in context.control.data
+        }
+        if evidence:
+            response["backend_assessment_evidence"] = evidence
         student_belief = context.state.data.get("StudentBelief")
         if student_belief is not None:
             response["backend_belief_state"] = student_belief.model_dump(mode="json") if hasattr(student_belief, "model_dump") else student_belief

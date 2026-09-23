@@ -68,7 +68,8 @@ class TurnSideTasks:
         logger.debug("Turn side task spawned: %s", name)
         self.tasks.append((name, self.executor.submit(fn), on_result))
 
-    def join(self, context: Context) -> None:
+    def join(self, context: Context, *, raise_errors: bool = False) -> None:
+        first_error: Exception | None = None
         try:
             if self.tasks:
                 logger.info("Joining %s turn side task(s).", len(self.tasks))
@@ -78,11 +79,15 @@ class TurnSideTasks:
                     logger.debug("Turn side task completed: %s", name)
                     if on_result is not None:
                         on_result(result, context)
-                except Exception:
+                except Exception as exc:
                     logger.exception("Turn side task failed: %s", name)
+                    if first_error is None:
+                        first_error = exc
         finally:
             self.tasks.clear()
             self.executor.shutdown(wait=True, cancel_futures=False)
+        if raise_errors and first_error is not None:
+            raise first_error
 
 
 def get_turn_side_tasks(context: Context) -> TurnSideTasks:
